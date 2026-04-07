@@ -50,6 +50,7 @@ jobs:
           COMPONENT_NAME: 'Lithium Python Stack'
           COMPONENT_VERSION: ${{ steps.version.outputs.version }}
           LOCK_FILE: 'uv.lock'
+          PRODUCT_RELEASE: ${{ format('["{0}:{1}"]', vars.SBOMIFY_PRODUCT_ID, steps.version.outputs.version) }}
           SBOM_FORMAT: ${{ matrix.format }}
           AUGMENT: true
           ENRICH: true
