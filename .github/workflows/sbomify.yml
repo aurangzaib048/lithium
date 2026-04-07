@@ -2,7 +2,7 @@ name: Generate and Upload SBOMs
 
 on:
   push:
-    branches: [master, main]
+    branches: [main]
   workflow_dispatch:
     inputs:
       component_version:
@@ -29,7 +29,7 @@ jobs:
             output_file: lithium.spdx.json
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           persist-credentials: false
 
@@ -45,7 +45,7 @@ jobs:
           fi
 
       - name: Generate and Upload SBOM
-        uses: sbomify/sbomify-action@master
+        uses: sbomify/sbomify-action@master  # scorecard-ignore:pinned-dependencies -- matches upstream sbomify dogfooding pattern
         env:
           TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
           API_BASE_URL: 'https://stage.sbomify.com'
@@ -60,7 +60,7 @@ jobs:
           OUTPUT_FILE: ${{ matrix.output_file }}
 
       - name: Attest SBOM build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
         with:
           subject-path: '${{ github.workspace }}/${{ matrix.output_file }}'
 
