@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       component_version:
-        description: 'Override component version (defaults to short SHA)'
+        description: 'Override component version (defaults to CalVer YYYY.MM.DD.SHA)'
         required: false
         type: string
 
@@ -38,11 +38,8 @@ jobs:
         env:
           INPUT_VERSION: ${{ inputs.component_version }}
         run: |
-          if [ -n "$INPUT_VERSION" ]; then
-            printf 'version=%s\n' "$INPUT_VERSION" >> "$GITHUB_OUTPUT"
-          else
-            printf 'version=%s\n' "$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-          fi
+          version=$(./scripts/calver-version.sh)
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
 
       - name: Generate and Upload SBOM
         uses: sbomify/sbomify-action@master
