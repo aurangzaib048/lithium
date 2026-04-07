@@ -1,0 +1,72 @@
+name: Generate and Upload SBOMs
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+    inputs:
+      component_version:
+        description: 'Override component version (defaults to short SHA)'
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+  attestations: write
+
+jobs:
+  generate-source-sboms:
+    name: Generate SBOM (${{ matrix.format }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - format: cyclonedx
+            output_file: lithium.cdx.json
+          - format: spdx
+            output_file: lithium.spdx.json
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Determine version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.component_version }}
+        run: |
+          if [ -n "$INPUT_VERSION" ]; then
+            printf 'version=%s\n' "$INPUT_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            printf 'version=%s\n' "$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate and Upload SBOM
+        uses: sbomify/sbomify-action@master
+        env:
+          TOKEN: ${{ secrets.SBOMIFY_STAGE_TOKEN }}
+          API_BASE_URL: 'https://stage.sbomify.com'
+          COMPONENT_ID: ${{ vars.SBOMIFY_COMPONENT_ID }}
+          COMPONENT_NAME: 'Lithium Python Stack'
+          COMPONENT_VERSION: ${{ steps.version.outputs.version }}
+          LOCK_FILE: 'uv.lock'
+          SBOM_FORMAT: ${{ matrix.format }}
+          AUGMENT: true
+          ENRICH: true
+          UPLOAD: true
+          OUTPUT_FILE: ${{ matrix.output_file }}
+
+      - name: Attest SBOM build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: '${{ github.workspace }}/${{ matrix.output_file }}'
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.format }}
+          path: ${{ matrix.output_file }}
+          retention-days: 30
