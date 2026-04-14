@@ -1,0 +1,23 @@
+{
+  "supplier": {
+    "name": "Lithium Project",
+    "url": ["https://github.com/aurangzaib048/lithium"],
+    "contacts": [
+      {
+        "name": "Rana Aurangzaib",
+        "email": "aurangzaib048@gmail.com"
+      }
+    ]
+  },
+  "authors": [
+    {
+      "name": "Rana Aurangzaib",
+      "email": "aurangzaib048@gmail.com"
+    }
+  ],
+  "licenses": ["MIT"],
+  "lifecycle_phase": "build",
+  "security_contact": "https://github.com/aurangzaib048/lithium/security",
+  "support_period_end": "2027-12-31",
+  "end_of_life": "2028-12-31"
+}
