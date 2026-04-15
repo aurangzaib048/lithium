@@ -6,13 +6,17 @@
 # to the local sbomify backend via sbomify-action CLI.
 #
 # Prerequisites:
-#   - syft installed (brew install syft)
 #   - sbomify-action repo at ../github-action (or set SBOMIFY_ACTION_DIR)
 #   - Local sbomify running at http://127.0.0.1:8000
 #   - API token, component ID, and product ID configured below
 #
+# Uses --lock-file (same as staging CI workflow) so the sbomify-action
+# picks the best available generator (cdxgen > cyclonedx-py > syft).
+#
 # Usage:
-#   ./scripts/sbomify-local.sh
+#   ./scripts/sbomify-local.sh              # both formats
+#   ./scripts/sbomify-local.sh cyclonedx    # CycloneDX only
+#   ./scripts/sbomify-local.sh spdx         # SPDX only
 
 set -euo pipefail
 
@@ -23,60 +27,43 @@ TOKEN="${SBOMIFY_LOCAL_TOKEN:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzY
 COMPONENT_ID="${SBOMIFY_LOCAL_COMPONENT_ID:-toZPapGzCdX4}"
 PRODUCT_ID="${SBOMIFY_LOCAL_PRODUCT_ID:-Vy9hNQEnHhcw}"
 COMPONENT_NAME="Lithium Python Stack"
+FORMAT="${1:-both}"  # cyclonedx, spdx, or both
 
 # --- Derived ---
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 VERSION="$(bash "$SCRIPT_DIR/calver-version.sh")"
-TMPDIR="${TMPDIR:-/tmp}"
 
 echo "=== sbomify local upload ==="
 echo "Version: $VERSION"
 echo "API: $API_BASE_URL"
+echo "Format: $FORMAT"
 echo ""
 
-# --- Generate SBOMs ---
-echo "Generating CycloneDX SBOM..."
-syft "dir:$PROJECT_DIR" -o "cyclonedx-json=$TMPDIR/lithium-local-cdx.json" --quiet
-
-echo "Generating SPDX SBOM..."
-syft "dir:$PROJECT_DIR" -o "spdx-json=$TMPDIR/lithium-local-spdx.json" --quiet
-
-CDX_COMPONENTS=$(python3 -c "import json; print(len(json.load(open('$TMPDIR/lithium-local-cdx.json')).get('components',[])))")
-SPDX_PACKAGES=$(python3 -c "import json; print(len(json.load(open('$TMPDIR/lithium-local-spdx.json')).get('packages',[])))")
-echo "CycloneDX: $CDX_COMPONENTS components | SPDX: $SPDX_PACKAGES packages"
-echo ""
-
-# --- Upload CycloneDX ---
-echo "Uploading CycloneDX..."
 cd "$PROJECT_DIR"
-uv run --project "$SBOMIFY_ACTION_DIR" \
-  sbomify-action \
-  --sbom-file "$TMPDIR/lithium-local-cdx.json" \
-  --sbom-format cyclonedx \
-  --component-name "$COMPONENT_NAME" \
-  --component-version "$VERSION" \
-  --augment --enrich \
-  --token "$TOKEN" \
-  --component-id "$COMPONENT_ID" \
-  --api-base-url "$API_BASE_URL" \
-  --product-release "[\"$PRODUCT_ID:$VERSION\"]"
 
-echo ""
+upload_sbom() {
+  local fmt="$1"
+  echo "--- Uploading $fmt ---"
+  uv run --project "$SBOMIFY_ACTION_DIR" \
+    sbomify-action \
+    --lock-file uv.lock \
+    --sbom-format "$fmt" \
+    --component-name "$COMPONENT_NAME" \
+    --component-version "$VERSION" \
+    --augment --enrich \
+    --token "$TOKEN" \
+    --component-id "$COMPONENT_ID" \
+    --api-base-url "$API_BASE_URL" \
+    --product-release "[\"$PRODUCT_ID:$VERSION\"]"
+  echo ""
+}
 
-# --- Upload SPDX ---
-echo "Uploading SPDX..."
-uv run --project "$SBOMIFY_ACTION_DIR" \
-  sbomify-action \
-  --sbom-file "$TMPDIR/lithium-local-spdx.json" \
-  --sbom-format spdx \
-  --component-name "$COMPONENT_NAME" \
-  --component-version "$VERSION" \
-  --augment --no-enrich \
-  --token "$TOKEN" \
-  --component-id "$COMPONENT_ID" \
-  --api-base-url "$API_BASE_URL" \
-  --product-release "[\"$PRODUCT_ID:$VERSION\"]"
+case "$FORMAT" in
+  cyclonedx) upload_sbom cyclonedx ;;
+  spdx)      upload_sbom spdx ;;
+  both)      upload_sbom cyclonedx; upload_sbom spdx ;;
+  *)         echo "Usage: $0 [cyclonedx|spdx|both]"; exit 1 ;;
+esac
 
-echo ""
 echo "=== Done ==="
